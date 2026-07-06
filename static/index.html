@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuminaPrompt - Local AI Image to Prompt Generator</title>
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css?v=1.1">
+</head>
+<body>
+    <div class="glass-bg-glow"></div>
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header>
+            <div class="logo-area">
+                <i data-lucide="sparkles" class="logo-icon"></i>
+                <h1>Lumina<span>Prompt</span></h1>
+            </div>
+            
+            <!-- Local LLM Status Banner -->
+            <div id="model-status-card" class="status-badge status-loading">
+                <span class="status-dot"></span>
+                <span id="model-status-text">로컬 모델 로딩 중...</span>
+                <div id="model-status-tooltip" class="tooltip">모델이 준비될 때까지 기다려 주세요.</div>
+            </div>
+        </header>
+
+        <main class="dashboard">
+            <!-- Left Panel: Input & Config -->
+            <section class="panel input-panel">
+                <div class="panel-header">
+                    <i data-lucide="image-plus"></i>
+                    <h2>이미지 업로드 & 설정</h2>
+                </div>
+                
+                <!-- Drag and Drop Area -->
+                <div id="drop-zone" class="drop-zone">
+                    <input type="file" id="image-input" accept="image/*" class="file-input">
+                    <div class="drop-zone-prompt">
+                        <i data-lucide="upload-cloud" class="upload-icon"></i>
+                        <p class="main-text">이미지를 드래그 앤 드롭하거나</p>
+                        <span class="btn-browse">파일 찾아보기</span>
+                        <p class="sub-text">PNG, JPG, JPEG, WEBP 지원</p>
+                    </div>
+                    <div id="preview-container" class="preview-container hidden">
+                        <img id="image-preview" src="" alt="업로드 이미지 미리보기">
+                        <button type="button" id="btn-remove-image" class="btn-remove" title="이미지 삭제">
+                            <i data-lucide="x"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Settings Controls -->
+                <div class="settings-group">
+                    <!-- Target Generator -->
+                    <div class="control-box">
+                        <label class="control-label">
+                            <i data-lucide="cpu"></i> 대상 이미지 생성 AI
+                        </label>
+                        <div class="target-selector">
+                            <input type="radio" id="target-sd" name="target" value="stable-diffusion" checked>
+                            <label for="target-sd">
+                                <span class="title">Stable Diffusion</span>
+                                <span class="desc">태그/키워드 중심</span>
+                            </label>
+                            
+                            <input type="radio" id="target-mj" name="target" value="midjourney">
+                            <label for="target-mj">
+                                <span class="title">Midjourney</span>
+                                <span class="desc">자연스러운 묘사</span>
+                            </label>
+                            
+                            <input type="radio" id="target-dalle" name="target" value="dall-e">
+                            <label for="target-dalle">
+                                <span class="title">DALL-E 3</span>
+                                <span class="desc">서사적 문장형</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Style Presets Grid -->
+                    <div class="control-box">
+                        <label class="control-label">
+                            <i data-lucide="palette"></i> 스타일 프리셋
+                        </label>
+                        <div class="style-grid">
+                            <input type="radio" id="style-none" name="style" value="none" checked>
+                            <label for="style-none" class="style-chip">기본 (자동)</label>
+                            
+                            <input type="radio" id="style-real" name="style" value="realistic">
+                            <label for="style-real" class="style-chip">실사 (Photo)</label>
+                            
+                            <input type="radio" id="style-anime" name="style" value="anime">
+                            <label for="style-anime" class="style-chip">애니메이션</label>
+                            
+                            <input type="radio" id="style-fantasy" name="style" value="fantasy">
+                            <label for="style-fantasy" class="style-chip">판타지</label>
+                            
+                            <input type="radio" id="style-scifi" name="style" value="sci-fi">
+                            <label for="style-scifi" class="style-chip">SF/사이버펑크</label>
+                            
+                            <input type="radio" id="style-oil" name="style" value="oil-painting">
+                            <label for="style-oil" class="style-chip">유화 (Oil)</label>
+                            
+                            <input type="radio" id="style-concept" name="style" value="concept-art">
+                            <label for="style-concept" class="style-chip">컨셉 아트</label>
+                        </div>
+                    </div>
+
+                    <!-- Detail Level -->
+                    <div class="control-box">
+                        <label class="control-label">
+                            <i data-lucide="sliders"></i> 묘사 상세도
+                        </label>
+                        <div class="slider-container">
+                            <div class="detail-steps">
+                                <input type="radio" id="detail-low" name="detail" value="low">
+                                <label for="detail-low">간결하게</label>
+                                
+                                <input type="radio" id="detail-med" name="detail" value="medium" checked>
+                                <label for="detail-med">보통</label>
+                                
+                                <input type="radio" id="detail-high" name="detail" value="high">
+                                <label for="detail-high">매우 상세히</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" id="btn-generate" class="btn-generate" disabled>
+                    <i data-lucide="wand-2"></i>
+                    <span>프롬프트 생성하기</span>
+                </button>
+            </section>
+
+            <!-- Right Panel: Outputs -->
+            <section class="panel output-panel">
+                <div class="panel-header">
+                    <i data-lucide="terminal"></i>
+                    <h2>생성된 최적 프롬프트</h2>
+                </div>
+
+                <!-- Empty State -->
+                <div id="output-empty" class="output-empty">
+                    <i data-lucide="sparkle" class="empty-icon"></i>
+                    <p>이미지를 업로드하고 프롬프트를 생성해 보세요.</p>
+                    <span class="empty-sub">로컬 VLM이 이미지의 요소를 분석하여 최적의 단어와 연출 구도를 작성합니다.</span>
+                </div>
+
+                <!-- Loading State -->
+                <div id="output-loading" class="output-loading hidden">
+                    <div class="loader-circle"></div>
+                    <div class="loader-glow"></div>
+                    <p class="loading-main-text">로컬 VLM 분석 중...</p>
+                    <p class="loading-sub-text">RTX 4060 Ti GPU를 활용해 이미지를 파싱하고 있습니다.</p>
+                </div>
+
+                <!-- Result Content -->
+                <div id="output-results" class="output-results hidden">
+                    <!-- Positive Prompt Card -->
+                    <div class="result-card">
+                        <div class="card-header">
+                            <span class="badge badge-positive">Positive Prompt</span>
+                            <button type="button" class="btn-copy" data-target="positive-text">
+                                <i data-lucide="copy"></i> 복사하기
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <p id="positive-text" class="prompt-text-display"></p>
+                        </div>
+                    </div>
+
+                    <!-- Negative Prompt Card -->
+                    <div class="result-card">
+                        <div class="card-header">
+                            <span class="badge badge-negative">Negative Prompt</span>
+                            <button type="button" class="btn-copy" data-target="negative-text">
+                                <i data-lucide="copy"></i> 복사하기
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <p id="negative-text" class="prompt-text-display"></p>
+                        </div>
+                    </div>
+
+                    <!-- Tags Card -->
+                    <div class="result-card">
+                        <div class="card-header">
+                            <span class="badge badge-tags">추출된 핵심 태그</span>
+                        </div>
+                        <div class="card-body">
+                            <div id="tags-container" class="tags-container">
+                                <!-- Tags will be dynamically loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Original Description Card -->
+                    <div class="result-card desc-card">
+                        <div class="card-header">
+                            <span class="badge badge-desc">VLM 기본 분석 묘사 (Raw Description)</span>
+                        </div>
+                        <div class="card-body">
+                            <p id="desc-text" class="raw-desc-text"></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden">
+        <i data-lucide="check-circle-2"></i>
+        <span>클립보드에 복사되었습니다!</span>
+    </div>
+
+    <script src="app.js?v=1.1"></script>
+    <script>
+        // Initialize lucide icons on load
+        lucide.createIcons();
+    </script>
+</body>
+</html>
