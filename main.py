@@ -60,6 +60,18 @@ def load_model_background():
             loaded_model = loaded_model.to(device)
             
         else: # LLaVA 1.5 7B Uncensored
+            # Auto-download from Hugging Face Hub if local files are missing
+            if not os.path.exists(MODEL_ID) or not os.path.exists(os.path.join(MODEL_ID, "config.json")):
+                print(f"[INFO] Local VLM weights not found at {MODEL_ID}. Commencing auto-download...")
+                model_status_message = "Downloading LLaVA-1.5-7B (~14GB) from Hugging Face... Please wait."
+                from huggingface_hub import snapshot_download
+                snapshot_download(
+                    repo_id="llava-hf/llava-1.5-7b-hf",
+                    local_dir=MODEL_ID,
+                    local_dir_use_symlinks=False,
+                    ignore_patterns=["*.msgpack", "*.h5", "*.ot"]
+                )
+
             if device == "cuda":
                 model_status_message = f"Loading LLaVA-1.5-7B in 4-bit mode on GPU..."
                 quantization_config = BitsAndBytesConfig(
