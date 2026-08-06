@@ -28,6 +28,15 @@ const descText = document.getElementById('desc-text');
 
 const toast = document.getElementById('toast');
 
+function getModelDisplayName(modelType) {
+    const modelNames = {
+        'gemma4-12b-qat-balanced': 'Gemma 4 12B QAT Balanced',
+        'llava-7b': 'LLaVA 1.5 7B (비검열)',
+        'moondream': 'Moondream2 (비검열)'
+    };
+    return modelNames[modelType] || modelType || '모델';
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     // Check local model loading status
@@ -50,7 +59,7 @@ async function checkModelStatus() {
         if (data.status === 'ready') {
             modelReady = true;
             modelStatusCard.className = 'status-badge status-ready';
-            const modelName = data.model_type === 'llava-7b' ? 'LLaVA 1.5 7B (비검열)' : 'Moondream2 (비검열)';
+            const modelName = getModelDisplayName(data.model_type);
             modelStatusText.textContent = `${modelName} 준비 완료 (${data.device.toUpperCase()})`;
             modelStatusTooltip.textContent = `${data.message}\n이 모델은 표현 제한 및 세이프티 차단이 해제되어 어떠한 이미지도 여과 없이 묘사합니다.`;
             
@@ -71,7 +80,7 @@ async function checkModelStatus() {
             // "loading" state
             modelReady = false;
             modelStatusCard.className = 'status-badge status-loading';
-            const modelName = data.model_type === 'llava-7b' ? 'LLaVA 1.5 7B' : 'Moondream2';
+            const modelName = getModelDisplayName(data.model_type);
             modelStatusText.textContent = `로컬 ${modelName} 초기화 중...`;
             modelStatusTooltip.textContent = data.message;
             btnGenerate.disabled = true;
@@ -227,7 +236,7 @@ function setupConfigHandlers() {
             outputLoading.classList.add('hidden');
             outputEmpty.classList.remove('hidden');
         } finally {
-            btnGenerate.disabled = false;
+            updateGenerateButtonState();
         }
     });
 }

@@ -1,68 +1,166 @@
-# LuminaPrompt - 로컬 비검열 AI 이미지 프롬프트 생성기
+# LuminaPrompt - Gemma 4 기반 로컬 이미지 프롬프트 생성기
 
-LuminaPrompt는 로컬 GPU를 활용하여 민감하거나 자극적인 이미지 묘사에도 검열 가이드라인(Refusal)에 의해 거부당하지 않고, 있는 그대로 분석하여 Midjourney, Stable Diffusion, DALL-E 3 전용 최적의 AI 프롬프트를 작성해주는 Vanilla JS/CSS/FastAPI 기반의 대시보드 웹앱입니다.
+LuminaPrompt는 업로드한 이미지를 로컬에서 분석해 Midjourney, Stable Diffusion, DALL-E 3용 프롬프트를 생성하는 FastAPI 웹앱입니다.
 
-이 서비스는 기본적으로 **LLaVA-1.5-7B (4-bit 양자화)** 및 **Moondream2** 로컬 비전 언어 모델(VLM)을 CUDA 가속으로 기동합니다.
-
----
-
-## 💻 요구 사양 및 환경
-- **운영체제**: Windows 10/11
-- **하드웨어 사양**: NVIDIA Dedicated GPU (RTX 4060 Ti 16GB 등 VRAM 6GB 이상 권장)
-- **런타임**: Python 3.10 ~ 3.11
+이 버전은 기존 `transformers + LLaVA` 경로 대신 **`HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced`** 모델을 **`llama-cpp-python`** 으로 구동하도록 변경되었습니다. 이 프로젝트는 텍스트 GGUF만이 아니라 Gemma 4 비전용 `mmproj` 파일도 함께 내려받아 이미지 입력을 처리합니다.
 
 ---
 
-## 🛠️ 최초 환경 설정 및 설치 방법
+## 요구 사항
 
-### 1단계. 가상환경 및 PyTorch CUDA 설치
-프로젝트 루트 폴더에 있는 **`setup_env.bat`** 파일을 더블 클릭하여 실행합니다. 
-이 배치는 자동으로 다음 작업을 수행합니다:
-1. Python 가상환경(`venv`)을 스폰합니다.
-2. CUDA 12.1 연산 가속을 지원하는 PyTorch 패키지를 다운로드합니다.
-3. `requirements.txt`에 기록된 FastAPI, Transformers 등의 의존성 패키지를 전량 설치합니다.
+- Windows 10/11
+- Python 3.10 ~ 3.12
+- NVIDIA GPU 권장
+- NVIDIA CUDA Toolkit 11.8 이상 권장
+- Visual Studio 2022 Build Tools 필수
+- 디스크 여유 공간 약 9 GB 이상 권장
 
-### 2단계. Windows 캐시 심볼릭 링크 오류 우회 및 모델 가중치 배치
-Windows 환경에서는 관리자 권한이나 개발자 모드가 아닐 경우 Hugging Face 캐시용 심볼릭 링크(Symbolic Link) 생성이 막혀 `model-00001-of-00003.safetensors` 누락 크래시가 유발될 수 있습니다. 
+CPU-only로도 시도할 수는 있지만, 속도는 매우 느릴 수 있습니다.
 
-이를 해결하기 위해 아래 명령어를 터미널에서 실행하여 프로젝트 내부 폴더에 **직접 가중치 실제 파일 복제본**을 다운로드 및 복사해 넣습니다:
+중요:
+- 2026년 7월 19일 기준 `llama-cpp-python 0.3.34`용 Windows `cu118` CUDA wheel을 사용할 수 있습니다.
+- 이 프로젝트는 Windows에서 가장 권장되는 GPU 가속 경로로 **CUDA 11.8 wheel 설치**를 우선 사용하고, Visual Studio 2022 Build Tools는 런타임 검증과 비상 수동 빌드 대비용으로 유지합니다.
+- `setup_env.bat` 실행 전 Build Tools와 CUDA Toolkit이 먼저 설치되어 있어야 합니다.
 
-```powershell
-# 가상환경 활성화
-.\venv\Scripts\activate
+---
 
-# 로컬 models 폴더에 직접 가중치 복사 (이미 다운로드 완료된 캐시가 있다면 디스크 복사로 빠르게 복원됩니다)
-hf download llava-hf/llava-1.5-7b-hf --local-dir models/llava-7b
+## 설치
+
+프로젝트 루트에서 **`setup_env.bat`** 를 실행합니다.
+
+이 배치는 다음 작업을 수행합니다.
+
+1. `venv` 가상환경 생성
+2. `pip` 업그레이드
+3. `requirements.txt` 기반 공통 의존성 설치
+4. Visual Studio C++ 빌드 환경 확인
+5. CUDA Toolkit 확인
+6. `llama-cpp-python` CUDA wheel 설치
+
+사전 설치가 필요한 항목:
+
+- Visual Studio 2022 Build Tools
+- `Desktop development with C++` 워크로드
+- MSVC v143 toolset
+- Windows SDK
+- CMake tools
+- NVIDIA CUDA Toolkit 11.8 이상
+
+`requirements.txt`에는 공통 의존성만 포함되어 있고, `llama-cpp-python` GPU 런타임은 `setup_env.bat`가 별도로 설치합니다.
+
+모델 본체는 설치 단계가 아니라 **첫 실행 시 자동 다운로드** 됩니다.
+다운로드된 모델은 기본적으로 OS의 기본 문서 폴더 아래 **`LLM-Models`** 폴더에 저장됩니다.
+첫 실행 시 보통 아래 두 파일이 함께 내려받아집니다.
+
+- `Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf`
+- `mmproj-Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced-BF16.gguf`
+
+기본 구조 예시:
+
+```text
+Documents\LLM-Models\HauhauCS\Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced
 ```
 
 ---
 
-## 🚀 실행 방법 및 원격 기기 접속
+## 실행
 
-가상환경 및 모델 배치가 완료된 상태에서 **`start_app.bat`** 파일을 더블 클릭하여 실행합니다.
-서버가 켜지고 LLaVA 모델이 GPU VRAM에 4-bitNF4 상태로 적재(약 15~20초 소요)된 후, 웹 브라우저에서 아래 주소로 접속해 즉시 서비스를 이용하실 수 있습니다:
+가상환경 준비가 끝나면 **`start_app.bat`** 를 실행합니다.
+이 런처는 현재 셸에 설정된 `LUMINAPROMPT_HOST`, `LUMINAPROMPT_PORT`, `LUMINAPROMPT_MODELS_DIR` 값을 읽습니다.
 
-👉 **[http://localhost:8088](http://localhost:8088)**
+실행 직후 터미널에는 다음 정보가 출력됩니다.
 
-### 📱 동일 와이파이(로컬 네트워크) 내 타 기기(모바일/태블릿 등) 접속
-모바일 기기 등으로 동일 와이파이 환경에서 PC에 구동된 LuminaPrompt를 이용하고 싶다면, PC의 로컬 IP(예: `http://192.168.x.x:8088`)로 접속할 수 있습니다. 
-- *참고*: 비보안(HTTP) 및 비localhost 환경에서는 브라우저 보안 정책상 표준 클립보드 복사 API(`navigator.clipboard`)가 작동을 거부합니다. LuminaPrompt는 이러한 로컬 네트워크 접속 시에도 정상적으로 복사가 완료되도록 **가상 텍스트 에어리어 기반의 Fallback 복사기**가 내장되어 있어 크래시 없이 안전하게 프롬프트를 복사할 수 있습니다.
+- `Local URL`: `http://localhost:8088`
+- `Network URL`: 같은 공유기의 다른 기기에서 접속할 주소
+
+서버가 떠 있는 동안 브라우저에서 `http://localhost:8088` 로 접속하면 됩니다.
+
+첫 실행은 모델 다운로드와 초기 로딩 때문에 오래 걸릴 수 있습니다. 이때 모델 파일은 `Documents\LLM-Models` 아래에 저장되고, 이후부터는 그 위치에서 다시 불러와 사용합니다.
+기본 문서 폴더가 아닌 다른 위치를 쓰고 싶다면 **첫 실행 전에** `LUMINAPROMPT_MODELS_DIR` 를 먼저 설정한 뒤 `start_app.bat` 를 실행해야 합니다.
 
 ---
 
-## 🔧 장애 해결 및 VRAM 메모리 관리 (Troubleshooting)
+## 현재 모델
 
-### 1. "Some modules are dispatched on the CPU or the disk" 로딩 실패 경고가 뜨는 경우
-- **원인**: GPU VRAM 여유 공간이 부족하여(약 5.2GB 여유 필요) 모델의 일부를 CPU 메모리로 offload 하려다 4-bitNF4 제한 사양에 걸려 로드가 실패한 현상입니다.
-- **해결책**: 백그라운드에 이전에 실행되었던 좀비 Python 프로세스가 남아있거나 다른 GPU 툴(ComfyUI 등)이 메모리를 잡고 있는 상태입니다. 파워쉘 터미널에서 다음 명령어로 백그라운드 포트 점유 프로세스를 일괄 강제종료한 뒤 서버를 재기동합니다.
+- Hugging Face repo: `HauhauCS/Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced`
+- 기본 런타임: `llama-cpp-python`
+- 기본 양자화 파일: `Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced-Q4_K_M.gguf`
+- 비전 프로젝터 파일: `mmproj-Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced-BF16.gguf`
+- 기본 로컬 저장 위치: `Documents\LLM-Models\HauhauCS\Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced`
+
+앱 내부 `MODEL_TYPE` 값은 현재 `gemma4-12b-qat-balanced` 입니다.
+
+---
+
+## 환경 변수
+
+필요하면 아래 값으로 런타임을 조정할 수 있습니다.
+
+- `LUMINAPROMPT_HOST`
+- `LUMINAPROMPT_PORT`
+- `LUMINAPROMPT_CTX`
+- `LUMINAPROMPT_THREADS`
+- `LUMINAPROMPT_MAX_TOKENS`
+- `LUMINAPROMPT_N_GPU_LAYERS`
+- `LUMINAPROMPT_MODELS_DIR`
+- `LUMINAPROMPT_SYSTEM_PROMPT_FILE`
+- `LUMINAPROMPT_SKIP_MODEL_LOAD`
+- `LUMINAPROMPT_VERBOSE`
+
+예시:
 
 ```powershell
-# 8088 포트를 붙들고 있는 좀비 python 프로세스 강제 종료
-Get-NetTCPConnection -LocalPort 8088 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-
-# 또는 백그라운드 python 프로세스 전체 강제 종료
-Stop-Process -Name "python" -Force
+$env:LUMINAPROMPT_HOST = "127.0.0.1"
+$env:LUMINAPROMPT_PORT = "8090"
+$env:LUMINAPROMPT_MODELS_DIR = "D:\LLM-Models"
+$env:LUMINAPROMPT_MAX_TOKENS = "1536"
+$env:LUMINAPROMPT_SYSTEM_PROMPT_FILE = "D:\CodeSpace\MasterPrompts\optimized_system_prompt.md"
+$env:LUMINAPROMPT_N_GPU_LAYERS = "0"
+.\start_app.bat
 ```
 
-### 2. 연속 복사 및 생성 알림 팝업 오작동
-- 화면 우측 하단의 Toast 알림이 여러 번 연속해서 호출되어도, 새로운 알림 타이머가 이전 타이머를 자동으로 `clear`하므로 조기에 팝업이 닫히거나 뭉개지지 않고 안정적으로 노출됩니다.
+`LUMINAPROMPT_N_GPU_LAYERS=0` 으로 두면 CPU 모드로 강제할 수 있습니다.
+
+`LUMINAPROMPT_MODELS_DIR` 를 지정하면 기본 `Documents\LLM-Models` 대신 원하는 모델 저장 루트를 사용할 수도 있습니다.
+
+---
+
+## 업로드 가드레일
+
+- 비이미지 파일은 `400`
+- 20 MB 초과 업로드는 `413`
+- 40,000,000 픽셀 초과 이미지는 `413`
+
+이 제한은 메모리 급증과 오작동을 줄이기 위한 것입니다.
+
+---
+
+## 문제 해결
+
+### 포트 8088이 이미 사용 중인 경우
+
+```powershell
+Get-NetTCPConnection -LocalPort 8088 -ErrorAction SilentlyContinue | ForEach-Object {
+    Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue
+}
+```
+
+### `llama-cpp-python` 설치가 실패하는 경우
+
+- Python 버전이 3.10~3.12인지 확인합니다.
+- Visual Studio 2022 Build Tools와 `Desktop development with C++` 워크로드가 설치되어 있는지 확인합니다.
+- `nvcc.exe`가 준비되지 않으면 CUDA wheel 설치 이후 실제 GPU 사용이 불가능합니다.
+- CUDA Toolkit 11.8 이상이 설치되어 있는지 확인합니다.
+- Gemma 4 비전 입력을 쓰려면 `Gemma4ChatHandler`를 포함한 최신 `llama-cpp-python`이 필요하므로, 오래된 버전이 남아 있지 않도록 다시 설치하는 편이 안전합니다.
+
+### 모델 파일 위치를 확인하고 싶은 경우
+
+- 기본 저장 위치는 `Documents\LLM-Models` 입니다.
+- 현재 기본 모델은 보통 `Documents\LLM-Models\HauhauCS\Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced` 아래에 저장됩니다.
+- 이미지 분석이 동작하려면 텍스트 GGUF뿐 아니라 `mmproj-Gemma4-12B-QAT-Uncensored-HauhauCS-Balanced-BF16.gguf` 파일도 같은 폴더에 있어야 합니다.
+- 다른 위치를 쓰고 싶다면 `LUMINAPROMPT_MODELS_DIR` 환경 변수를 지정합니다.
+
+### 다른 기기에서 접속이 안 되는 경우
+
+- Windows 방화벽에서 Python 또는 해당 포트를 허용합니다.
+- 반드시 터미널에 표시된 `Network URL` 로 접속합니다.
